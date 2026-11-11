@@ -28,6 +28,21 @@ function CardStars({ value }) {
   return <span className="card-stars" aria-label={value ? `${value} out of 5 stars` : 'Not yet rated'}>{[1, 2, 3, 4, 5].map(star => <span key={star} className={star <= value ? 'on' : ''}>★</span>)}</span>
 }
 
+function TripComparison({ onClose, selectTrip }) {
+  useEffect(() => {
+    const closeOnEscape = event => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
+
+  return <div className="comparison-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
+    <section className="comparison-dialog" role="dialog" aria-modal="true" aria-labelledby="comparison-title">
+      <header className="comparison-header"><div><p className="landing-kicker">ALL SIX OPTIONS</p><h2 id="comparison-title">Compare trips</h2><p>Swipe sideways to see every option on a smaller screen.</p></div><button className="comparison-close" onClick={onClose} aria-label="Close trip comparison">×</button></header>
+      <div className="comparison-table-wrap"><table className="comparison-table"><thead><tr><th>Trip</th>{orderedTrips.map(trip => <th key={trip.id}><img src={publicAsset(trip.image)} alt="" />{trip.location}</th>)}</tr></thead><tbody><tr><th>Property cost</th>{orderedTrips.map(trip => <td key={trip.id}>{money(trip.propertyCost)}</td>)}</tr><tr><th>Airfare avg.</th>{orderedTrips.map(trip => <td key={trip.id}>{trip.airfarePerPerson === null ? 'TBD' : `${money(trip.airfarePerPerson)}/person`}</td>)}</tr><tr className="comparison-emphasis"><th>Est. total · 24 people</th>{orderedTrips.map(trip => <td key={trip.id}>{totalFor24(trip)}</td>)}</tr><tr><th>Travel time</th>{orderedTrips.map(trip => <td key={trip.id}>{trip.travelTime}</td>)}</tr><tr><th>November weather</th>{orderedTrips.map(trip => <td key={trip.id}>{trip.weather}</td>)}</tr><tr><th>Stay</th>{orderedTrips.map(trip => <td key={trip.id}>{trip.stay}</td>)}</tr><tr><th>Chef</th>{orderedTrips.map(trip => <td key={trip.id}>{trip.privateChef ? 'Included' : 'Not included'}</td>)}</tr><tr><th>Property</th>{orderedTrips.map(trip => <td key={trip.id}>{trip.facts.slice(0, 2).join(' · ')}</td>)}</tr></tbody><tfoot><tr><th>Details</th>{orderedTrips.map(trip => <td key={trip.id}><button onClick={() => { selectTrip(trip); onClose() }}>View trip</button></td>)}</tr></tfoot></table></div>
+    </section>
+  </div>
+}
+
 function Landing({ voter, chooseVoter, activeVoter, hasBallot, pin, setPin, confirmPin, setConfirmPin, unlock, notice, clearNotice }) {
   return <main className="landing-page"><section className="landing-card"><p className="landing-kicker">Time to Vote!</p><h1>OSTLER TRIP 2027</h1><p className="landing-copy">Choose your household. Create or enter your pin</p><select aria-label="Choose your name" value={voter} onChange={e => chooseVoter(e.target.value)}><option value="">Choose your name</option>{voters.map(name => <option key={name}>{name}</option>)}</select>{activeVoter && hasBallot !== null && <form onSubmit={unlock}><input autoFocus type="password" inputMode="numeric" autoComplete="off" placeholder="PIN" maxLength="4" pattern="[0-9]{4}" value={pin} onChange={e => setPin(e.target.value)} />{!hasBallot && <input type="password" inputMode="numeric" autoComplete="off" placeholder="Confirm PIN" maxLength="4" pattern="[0-9]{4}" value={confirmPin} onChange={e => setConfirmPin(e.target.value)} />}<button>{hasBallot ? 'Unlock ballot' : 'Create ballot'}</button></form>}{notice && <p className={`landing-notice ${isErrorNotice(notice) ? 'error' : ''}`}>{notice}<button className="dismiss-notice" onClick={clearNotice} aria-label="Dismiss message">×</button></p>}</section><footer>Powered by Chicks & Maaaalyn Farming Co.</footer></main>
 }
@@ -57,6 +72,7 @@ function App() {
   const [activePin, setActivePin] = useState('')
   const [activeTrip, setActiveTrip] = useState(orderedTrips[0])
   const [notice, setNotice] = useState('')
+  const [showComparison, setShowComparison] = useState(false)
 
   useEffect(() => {
     if (!isLocalDevelopment) return
@@ -126,7 +142,8 @@ function App() {
   if (!isUnlocked) return <Landing voter={voter} chooseVoter={chooseVoter} activeVoter={activeVoter} hasBallot={hasBallot} pin={pin} setPin={setPin} confirmPin={confirmPin} setConfirmPin={setConfirmPin} unlock={unlock} notice={notice} clearNotice={() => setNotice('')} />
 
   return <main>
-    <header className="header"><nav><div className="brand">Ostler Trip 2027 Voting</div><span className="active-voter">{activeVoter}</span><button className={`header-submit ${votes._submittedAt ? 'locked' : ''}`} onClick={submitVotes} disabled={Boolean(votes._submittedAt)}>{votes._submittedAt ? 'Ballot submitted' : 'Submit & finalize ballot'}</button></nav></header>
+    <header className="header"><nav><div className="brand">Ostler Trip 2027 Voting</div><span className="active-voter">{activeVoter}</span><div className="header-controls"><button className="compare-trigger" onClick={() => setShowComparison(true)}>Compare trips</button><button className={`header-submit ${votes._submittedAt ? 'locked' : ''}`} onClick={submitVotes} disabled={Boolean(votes._submittedAt)}>{votes._submittedAt ? 'Ballot submitted' : 'Submit & finalize ballot'}</button></div></nav></header>
+    {showComparison && <TripComparison onClose={() => setShowComparison(false)} selectTrip={setActiveTrip} />}
     {notice && <p className={`notice wrap ${isErrorNotice(notice) ? 'error' : ''}`}>{notice}<button className="dismiss-notice" onClick={() => setNotice('')} aria-label="Dismiss message">×</button></p>}
     <div className="mobile-trip-menu wrap"><label htmlFor="mobile-trip-picker">Trip</label><select id="mobile-trip-picker" value={activeTrip.id} onChange={e => setActiveTrip(orderedTrips.find(trip => trip.id === e.target.value))}>{orderedTrips.map(trip => <option key={trip.id} value={trip.id}>{trip.location}</option>)}</select></div>
     <section className="trip-card-menu wrap" aria-label="Trip locations">{orderedTrips.map(trip => <button key={trip.id} onClick={() => setActiveTrip(trip)} className={activeTrip.id === trip.id ? 'active' : ''}><strong className="tab-card-name" title={trip.location}>{tabLabel(trip.location)}{votes._favorite === trip.id && <span className="card-favorite" title="My favorite trip">★</span>}</strong><span className="tab-card-bottom"><img src={publicAsset(trip.image)} alt="" /><small><CardStars value={votes[trip.id] || 0} /></small></span></button>)}</section>
