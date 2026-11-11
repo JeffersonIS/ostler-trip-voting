@@ -8,7 +8,7 @@ import Admin from './Admin'
 const tripModules = import.meta.glob('./data/trips/*.json', { eager: true, import: 'default' })
 const orderedTrips = Object.values(tripModules).sort((first, second) => first.sortOrder - second.sortOrder)
 
-const voters = ['Scott / Delene', 'Amanda', 'Jackson / Katie', 'Harrison / Jerika', 'Jefferson / Amber', 'Benson', 'Wilson / Emily']
+const voters = ['Scott / Delene', 'Amanda', 'Jackson / Katie', 'Harrison / Jerika', 'Jefferson / Amber', 'Benson', 'Wilson / Emily', 'Saydi / Dave']
 const siteBase = import.meta.env.BASE_URL
 const publicAsset = path => `${siteBase}${path.replace(/^\//, '')}`
 const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value)
