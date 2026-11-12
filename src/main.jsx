@@ -17,6 +17,7 @@ const isErrorNotice = notice => /not correct|not ready|could not|use a four|do n
 const tabLabel = label => label.length > 20 ? `${label.slice(0, 19)}…` : label
 const isLocalDevelopment = ['localhost', '127.0.0.1'].includes(window.location.hostname)
 const localSessionKey = 'ostler-trip-2027-local-session'
+const votingDeadline = new Date('2026-11-13T20:00:00-08:00').getTime()
 
 function StarPicker({ value, onChange, disabled = false }) {
   return <div className="stars" aria-label="Your rating">
@@ -26,6 +27,22 @@ function StarPicker({ value, onChange, disabled = false }) {
 
 function CardStars({ value }) {
   return <span className="card-stars" aria-label={value ? `${value} out of 5 stars` : 'Not yet rated'}>{[1, 2, 3, 4, 5].map(star => <span key={star} className={star <= value ? 'on' : ''}>★</span>)}</span>
+}
+
+function Countdown() {
+  const remaining = () => Math.max(0, votingDeadline - Date.now())
+  const [milliseconds, setMilliseconds] = useState(remaining)
+  useEffect(() => {
+    const interval = window.setInterval(() => setMilliseconds(remaining()), 1000)
+    return () => window.clearInterval(interval)
+  }, [])
+  const totalSeconds = Math.floor(milliseconds / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor(totalSeconds % 86400 / 3600)
+  const minutes = Math.floor(totalSeconds % 3600 / 60)
+  const seconds = totalSeconds % 60
+  const time = `${days}:${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  return <div className="countdown" aria-label={`${totalSeconds} seconds until voting deadline`}><span className="countdown-label">Time Left</span><strong>{time}</strong></div>
 }
 
 function TripComparison({ onClose, selectTrip, votes, rate, chooseFavorite, locked }) {
@@ -142,10 +159,10 @@ function App() {
   if (!isUnlocked) return <Landing voter={voter} chooseVoter={chooseVoter} activeVoter={activeVoter} hasBallot={hasBallot} pin={pin} setPin={setPin} confirmPin={confirmPin} setConfirmPin={setConfirmPin} unlock={unlock} notice={notice} clearNotice={() => setNotice('')} />
 
   return <main>
-    <header className="header"><nav><div className="brand">Ostler Trip 2027 Voting</div><span className="active-voter">{activeVoter}</span><div className="header-controls"><button className="compare-trigger" onClick={() => setShowComparison(true)}>Compare trips</button><button className={`header-submit ${votes._submittedAt ? 'locked' : ''}`} onClick={submitVotes} disabled={Boolean(votes._submittedAt)}>{votes._submittedAt ? 'Ballot submitted' : 'Submit & finalize ballot'}</button></div></nav></header>
+    <header className="header"><nav><div className="brand">Ostler Trip 2027 Voting</div><div className="header-center"><Countdown /></div><div className="header-controls"><button className="compare-trigger" onClick={() => setShowComparison(true)}>Compare trips</button><button className={`header-submit ${votes._submittedAt ? 'locked' : ''}`} onClick={submitVotes} disabled={Boolean(votes._submittedAt)}>{votes._submittedAt ? 'Ballot submitted' : 'Submit & finalize ballot'}</button></div></nav></header>
     {showComparison && <TripComparison onClose={() => setShowComparison(false)} selectTrip={setActiveTrip} votes={votes} rate={rate} chooseFavorite={chooseFavorite} locked={Boolean(votes._submittedAt)} />}
     {notice && <p className={`notice wrap ${isErrorNotice(notice) ? 'error' : ''}`}>{notice}<button className="dismiss-notice" onClick={() => setNotice('')} aria-label="Dismiss message">×</button></p>}
-    <div className="mobile-trip-menu wrap"><label htmlFor="mobile-trip-picker">Trip</label><select id="mobile-trip-picker" value={activeTrip.id} onChange={e => setActiveTrip(orderedTrips.find(trip => trip.id === e.target.value))}>{orderedTrips.map(trip => <option key={trip.id} value={trip.id}>{trip.location}</option>)}</select></div>
+    <div className="mobile-trip-menu wrap" aria-label="Choose a trip"><button onClick={() => setActiveTrip(orderedTrips[(orderedTrips.indexOf(activeTrip) - 1 + orderedTrips.length) % orderedTrips.length])} aria-label="Previous trip">‹</button><strong aria-live="polite">{activeTrip.location}</strong><button onClick={() => setActiveTrip(orderedTrips[(orderedTrips.indexOf(activeTrip) + 1) % orderedTrips.length])} aria-label="Next trip">›</button></div>
     <section className="trip-card-menu wrap" aria-label="Trip locations">{orderedTrips.map(trip => <button key={trip.id} onClick={() => setActiveTrip(trip)} className={activeTrip.id === trip.id ? 'active' : ''}><strong className="tab-card-name" title={trip.location}>{tabLabel(trip.location)}{votes._favorite === trip.id && <span className="card-favorite" title="My favorite trip">★</span>}</strong><span className="tab-card-bottom"><img src={publicAsset(trip.image)} alt="" /><small><CardStars value={votes[trip.id] || 0} /></small></span></button>)}</section>
     <section className="trip-dossier">
       <div className="map-background" aria-hidden="true" />
