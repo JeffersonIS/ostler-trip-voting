@@ -6,7 +6,7 @@ create extension if not exists pgcrypto with schema extensions;
 create table if not exists public.ballots (
   name text primary key check (name in (
     'Scott / Delene', 'Jackson / Katie', 'Harrison / Jerika',
-    'Jefferson / Amber', 'Benson', 'Wilson / Emily', 'Amanda'
+    'Jefferson / Amber', 'Benson', 'Wilson / Emily', 'Amanda', 'Saydi / Dave'
   )),
   pin_hash text not null,
   votes jsonb not null default '{}'::jsonb,
@@ -20,7 +20,7 @@ revoke all on table public.ballots from anon, authenticated;
 alter table public.ballots drop constraint if exists ballots_name_check;
 alter table public.ballots add constraint ballots_name_check check (name in (
   'Scott / Delene', 'Jackson / Katie', 'Harrison / Jerika',
-  'Jefferson / Amber', 'Benson', 'Wilson / Emily', 'Amanda'
+  'Jefferson / Amber', 'Benson', 'Wilson / Emily', 'Amanda', 'Saydi / Dave'
 ));
 
 create or replace function public.ballot_exists(p_name text)
@@ -37,7 +37,7 @@ security definer
 set search_path = public, extensions
 as $$
 begin
-  if p_name not in ('Scott / Delene', 'Jackson / Katie', 'Harrison / Jerika', 'Jefferson / Amber', 'Benson', 'Wilson / Emily', 'Amanda')
+  if p_name not in ('Scott / Delene', 'Jackson / Katie', 'Harrison / Jerika', 'Jefferson / Amber', 'Benson', 'Wilson / Emily', 'Amanda', 'Saydi / Dave')
      or p_pin !~ '^[0-9]{4}$' then
     raise exception 'Invalid ballot setup';
   end if;
@@ -147,7 +147,7 @@ language plpgsql security definer set search_path = public, extensions
 as $$
 begin
   if not exists (select 1 from public.ballots where name = 'Jefferson / Amber' and pin_hash = extensions.crypt(p_admin_pin, pin_hash))
-     or p_name not in ('Scott / Delene', 'Jackson / Katie', 'Harrison / Jerika', 'Jefferson / Amber', 'Benson', 'Wilson / Emily', 'Amanda')
+     or p_name not in ('Scott / Delene', 'Jackson / Katie', 'Harrison / Jerika', 'Jefferson / Amber', 'Benson', 'Wilson / Emily', 'Amanda', 'Saydi / Dave')
      or p_pin !~ '^[0-9]{4}$' then raise exception 'Not authorized'; end if;
   insert into public.ballots (name, pin_hash) values (p_name, extensions.crypt(p_pin, extensions.gen_salt('bf')));
   return '{}'::jsonb;

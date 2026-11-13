@@ -17,7 +17,6 @@ const isErrorNotice = notice => /not correct|not ready|could not|use a four|do n
 const tabLabel = label => label.length > 20 ? `${label.slice(0, 19)}…` : label
 const isLocalDevelopment = ['localhost', '127.0.0.1'].includes(window.location.hostname)
 const localSessionKey = 'ostler-trip-2027-local-session'
-const votingDeadline = new Date('2026-11-13T20:00:00-08:00').getTime()
 
 function StarPicker({ value, onChange, disabled = false }) {
   return <div className="stars" aria-label="Your rating">
@@ -27,22 +26,6 @@ function StarPicker({ value, onChange, disabled = false }) {
 
 function CardStars({ value }) {
   return <span className="card-stars" aria-label={value ? `${value} out of 5 stars` : 'Not yet rated'}>{[1, 2, 3, 4, 5].map(star => <span key={star} className={star <= value ? 'on' : ''}>★</span>)}</span>
-}
-
-function Countdown() {
-  const remaining = () => Math.max(0, votingDeadline - Date.now())
-  const [milliseconds, setMilliseconds] = useState(remaining)
-  useEffect(() => {
-    const interval = window.setInterval(() => setMilliseconds(remaining()), 1000)
-    return () => window.clearInterval(interval)
-  }, [])
-  const totalSeconds = Math.floor(milliseconds / 1000)
-  const days = Math.floor(totalSeconds / 86400)
-  const hours = Math.floor(totalSeconds % 86400 / 3600)
-  const minutes = Math.floor(totalSeconds % 3600 / 60)
-  const seconds = totalSeconds % 60
-  const time = `${days}:${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-  return <div className="countdown" aria-label={`${totalSeconds} seconds until voting deadline`}><span className="countdown-label">Time Left</span><strong>{time}</strong></div>
 }
 
 function TripComparison({ onClose, selectTrip, votes, rate, chooseFavorite, locked }) {
@@ -72,10 +55,13 @@ function Results() {
   useEffect(() => { ballotRpc('public_results').then(setBallots).catch(() => setNotice('Results are not available yet.')).finally(() => setLoading(false)) }, [])
   const summary = orderedTrips.map(trip => {
     const ratings = ballots.map(ballot => ballot.votes[trip.id]).filter(Boolean)
-    return { trip, favorites: ballots.filter(ballot => ballot.votes._favorite === trip.id).length, average: ratings.length ? ratings.reduce((total, rating) => total + rating, 0) / ratings.length : 0 }
-  }).sort((a, b) => b.favorites - a.favorites || b.average - a.average)
-  const overallFavorite = summary[0]
-  return <main className="results-page"><header className="results-header"><a href={home}>← Trip voting</a><strong>Submitted ballots</strong></header><section className="results-content"><p className="landing-kicker">OSTLER TRIP 2027</p><h1>Results</h1><p className="results-intro">Only households that have finalized their ballots appear below.</p>{loading ? <p className="results-intro">Loading results…</p> : notice ? <p className="landing-notice error">{notice}<button className="dismiss-notice" onClick={() => setNotice('')} aria-label="Dismiss message">×</button></p> : <><div className="results-table-wrap"><table className="results-table"><thead><tr><th>Household</th><th>Favorite</th>{orderedTrips.map(trip => <th key={trip.id}>{trip.location}</th>)}</tr></thead><tbody>{ballots.length ? ballots.map(ballot => <tr key={ballot.household}><th>{ballot.household}</th><td>{orderedTrips.find(trip => trip.id === ballot.votes._favorite)?.location || '—'}</td>{orderedTrips.map(trip => <td key={trip.id}>{ballot.votes[trip.id] ? `${ballot.votes[trip.id]} ★` : '—'}</td>)}</tr>) : <tr><td colSpan={orderedTrips.length + 2}>No ballots have been submitted yet.</td></tr>}</tbody>{ballots.length > 0 && <tfoot><tr><th>Total stars</th><td>—</td>{orderedTrips.map(trip => <td key={trip.id}>{ballots.reduce((total, ballot) => total + (ballot.votes[trip.id] || 0), 0)} ★</td>)}</tr></tfoot>}</table></div>{ballots.length > 0 && <section className="results-summary"><div className="overall-winner"><img src={publicAsset(overallFavorite.trip.image)} alt={overallFavorite.trip.title} /><div><h2>Winner: {overallFavorite.trip.location}</h2><p>{overallFavorite.favorites} favorite vote{overallFavorite.favorites === 1 ? '' : 's'} · {overallFavorite.average.toFixed(1)} average stars</p><a href={overallFavorite.trip.listingUrl} target="_blank" rel="noreferrer">Open {overallFavorite.trip.badge} ↗</a></div></div><div className="summary-list">{summary.map(({ trip, favorites, average }, index) => <div key={trip.id} className={index === 0 ? 'winner' : ''}><strong>{trip.location}</strong><span>{favorites} favorite vote{favorites === 1 ? '' : 's'} · {average.toFixed(1)} ★ avg</span></div>)}</div></section>}</>}</section></main>
+    const stars = ratings.reduce((total, rating) => total + rating, 0)
+    return { trip, favorites: ballots.filter(ballot => ballot.votes._favorite === trip.id).length, stars, average: ratings.length ? stars / ratings.length : 0 }
+  }).sort((a, b) => b.favorites - a.favorites || b.stars - a.stars)
+  const favoriteWinners = summary.filter(item => item.favorites === Math.max(...summary.map(candidate => candidate.favorites)))
+  const popularWinners = summary.filter(item => item.stars === Math.max(...summary.map(candidate => candidate.stars)))
+  const winnerSet = (title, winners, metric) => <section className="winner-set"><p className="landing-kicker">{winners.length > 1 ? title.replace('WINNER', 'TIED WINNERS') : title}</p><div className="winner-cards">{winners.map(({ trip, favorites, stars }) => <article key={trip.id}><img src={publicAsset(trip.image)} alt={trip.title} /><div><h2>{trip.location}</h2><p>{metric === 'favorites' ? `${favorites} favorite vote${favorites === 1 ? '' : 's'}` : `${stars} total stars`}</p><a href={trip.listingUrl} target="_blank" rel="noreferrer">Open {trip.badge} ↗</a></div></article>)}</div></section>
+  return <main className="results-page"><header className="results-header"><a href={home}>← Trip voting</a><strong>Submitted ballots</strong></header><section className="results-content"><p className="landing-kicker">OSTLER TRIP 2027</p><h1>Results</h1>{loading ? <p className="results-intro">Loading results…</p> : notice ? <p className="landing-notice error">{notice}<button className="dismiss-notice" onClick={() => setNotice('')} aria-label="Dismiss message">×</button></p> : <>{ballots.length > 0 && <section className="results-winners">{winnerSet('WINNER BY FAVORITE VOTES', favoriteWinners, 'favorites')}{winnerSet('WINNER BY POPULAR VOTE · TOTAL STARS', popularWinners, 'stars')}</section>}<div className="results-table-wrap"><table className="results-table"><thead><tr><th>Household</th><th>Favorite</th>{orderedTrips.map(trip => <th key={trip.id}>{trip.location}</th>)}</tr></thead><tbody>{ballots.length ? ballots.map(ballot => <tr key={ballot.household}><th>{ballot.household}</th><td>{orderedTrips.find(trip => trip.id === ballot.votes._favorite)?.location || '—'}</td>{orderedTrips.map(trip => <td key={trip.id}>{ballot.votes[trip.id] ? `${ballot.votes[trip.id]} ★` : '—'}</td>)}</tr>) : <tr><td colSpan={orderedTrips.length + 2}>No ballots have been submitted yet.</td></tr>}</tbody>{ballots.length > 0 && <tfoot><tr><th>Total stars</th><td>—</td>{orderedTrips.map(trip => <td key={trip.id}>{ballots.reduce((total, ballot) => total + (ballot.votes[trip.id] || 0), 0)} ★</td>)}</tr></tfoot>}</table></div>{ballots.length > 0 && <div className="summary-list">{summary.map(({ trip, favorites, stars, average }) => <div key={trip.id}><strong>{trip.location}</strong><span>{favorites} favorite vote{favorites === 1 ? '' : 's'} · {stars} total stars · {average.toFixed(1)} ★ avg</span></div>)}</div>}</>}</section></main>
 }
 
 function App() {
@@ -159,7 +145,7 @@ function App() {
   if (!isUnlocked) return <Landing voter={voter} chooseVoter={chooseVoter} activeVoter={activeVoter} hasBallot={hasBallot} pin={pin} setPin={setPin} confirmPin={confirmPin} setConfirmPin={setConfirmPin} unlock={unlock} notice={notice} clearNotice={() => setNotice('')} />
 
   return <main>
-    <header className="header"><nav><div className="brand">Ostler Trip 2027 Voting</div><div className="header-center"><Countdown /></div><div className="header-controls"><button className="compare-trigger" onClick={() => setShowComparison(true)}>Compare trips</button><button className={`header-submit ${votes._submittedAt ? 'locked' : ''}`} onClick={submitVotes} disabled={Boolean(votes._submittedAt)}>{votes._submittedAt ? 'Ballot submitted' : 'Submit & finalize ballot'}</button></div></nav></header>
+    <header className="header"><nav><div className="brand">Ostler Trip 2027 Voting</div><div className="header-controls"><a className="results-trigger" href={`${siteBase}?p=/results`}>Results</a><button className="compare-trigger" onClick={() => setShowComparison(true)}>Compare trips</button><button className={`header-submit ${votes._submittedAt ? 'locked' : ''}`} onClick={submitVotes} disabled={Boolean(votes._submittedAt)}>{votes._submittedAt ? 'Ballot submitted' : 'Submit & finalize ballot'}</button></div></nav></header>
     {showComparison && <TripComparison onClose={() => setShowComparison(false)} selectTrip={setActiveTrip} votes={votes} rate={rate} chooseFavorite={chooseFavorite} locked={Boolean(votes._submittedAt)} />}
     {notice && <p className={`notice wrap ${isErrorNotice(notice) ? 'error' : ''}`}>{notice}<button className="dismiss-notice" onClick={() => setNotice('')} aria-label="Dismiss message">×</button></p>}
     <div className="mobile-trip-menu wrap" aria-label="Choose a trip"><button onClick={() => setActiveTrip(orderedTrips[(orderedTrips.indexOf(activeTrip) - 1 + orderedTrips.length) % orderedTrips.length])} aria-label="Previous trip">‹</button><strong aria-live="polite">{activeTrip.location}</strong><button onClick={() => setActiveTrip(orderedTrips[(orderedTrips.indexOf(activeTrip) + 1) % orderedTrips.length])} aria-label="Next trip">›</button></div>
